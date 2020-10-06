@@ -12,4 +12,8 @@ public class AuthSession {
     private AuthenticationState state;
     @JsonProperty("login_challenge")
     private String loginChallenge;
+    @JsonProperty("acr")
+    private String acr;
+    @JsonProperty("subject")
+    private String subject;
 }

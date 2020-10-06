@@ -95,7 +95,7 @@ class AuthInitControllerTest {
                         .withHeader("Content-Type", "application/json; charset=UTF-8")
                         .withBodyFile("mock_responses/mock_response.json")));
 
-        String testCookie = given()
+        given()
                 .param("loginChallenge", TEST_LOGIN_CHALLENGE)
                 .when()
                 .get("/auth/init")
@@ -103,17 +103,6 @@ class AuthInitControllerTest {
                 .assertThat()
                 .statusCode(200)
                 .extract().cookie("JSESSIONID");
-
-        given()
-                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
-                .cookie("JSESSIONID", testCookie)
-                .when()
-                .get("/auth/init")
-                .then()
-                .assertThat()
-                .statusCode(200)
-                .assertThat().cookie("JSESSIONID");
-
         mockOidcServer.stop();
         // TODO assert correct content-type
     }
