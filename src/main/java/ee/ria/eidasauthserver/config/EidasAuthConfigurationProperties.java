@@ -14,4 +14,6 @@ public class EidasAuthConfigurationProperties {
 
     @NotBlank
     String hydraServiceLoginUrl;
+    @NotBlank
+    String hydraServiceLoginAcceptUrl;
 }
