@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AuthSession {
-    private AuthenticationState state;
+    private AuthState state;
     @JsonProperty("login_challenge")
     private String loginChallenge;
     @JsonProperty("acr")

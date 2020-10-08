@@ -1,5 +1,5 @@
 package ee.ria.eidasauthserver.session;
 
-public enum AuthenticationState {
+public enum AuthState {
     INIT_AUTH_PROCESS, AUTHENTICATION_SUCCESS
 }

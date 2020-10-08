@@ -2,20 +2,18 @@ package ee.ria.eidasauthserver.view;
 
 import ee.ria.eidasauthserver.config.EidasAuthConfigurationProperties;
 import ee.ria.eidasauthserver.session.AuthSession;
-import ee.ria.eidasauthserver.session.AuthenticationState;
+import ee.ria.eidasauthserver.session.AuthState;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
 import javax.servlet.http.HttpSession;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Pattern;
-import javax.validation.constraints.Size;
+import javax.validation.constraints.*;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +28,7 @@ class AuthInitController {
     @Autowired
     private RestTemplate hydraService;
 
-    @GetMapping("/auth/init")
+    @GetMapping(value = "/auth/init", produces = MediaType.TEXT_HTML_VALUE)
     public String authInit(@Validated RequestParameters loginChallenge, HttpSession session) {
 
         if (session.getAttribute("session") != null) {
@@ -50,7 +48,7 @@ class AuthInitController {
     private void createSession(RequestParameters loginChallenge, HttpSession session) {
         AuthSession newSession = new AuthSession();
         newSession.setLoginChallenge(getStringParameterValue(loginChallenge.getLoginChallenge()));
-        newSession.setState(AuthenticationState.INIT_AUTH_PROCESS);
+        newSession.setState(AuthState.INIT_AUTH_PROCESS);
         session.setAttribute("session", newSession);
     }
 
@@ -60,9 +58,8 @@ class AuthInitController {
 
     @Data
     public static class RequestParameters {
-        @NotNull
-        @NotEmpty
+        @NotEmpty(message = "value must not be null or empty")
         @Size(max = 1, message = "multiple instances not supported")
-        List<@Size(max = 50) @Pattern(regexp = "[A-Za-z0-9]{1,}", message = "only characters and numbers allowed") String> loginChallenge;
+        List<@NotBlank @Size(max = 50) @Pattern(regexp = "[A-Za-z0-9]{1,}", message = "only characters and numbers allowed") String> loginChallenge;
     }
 }

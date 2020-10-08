@@ -4,13 +4,19 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import io.restassured.RestAssured;
+import io.restassured.filter.log.RequestLoggingFilter;
+import io.restassured.filter.log.ResponseLoggingFilter;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -29,6 +35,11 @@ class AuthInitControllerTest {
     @LocalServerPort
     protected int port;
 
+    @BeforeAll
+    static void setUpAll() {
+        configureRestAssured();
+    }
+
     @BeforeEach
     void setUp() {
         RestAssured.port = port;
@@ -42,14 +53,32 @@ class AuthInitControllerTest {
     }
 
     @Test
-    void authInit_NoInput() {
+    void authInit_EmptyParameter() {
         given()
                 .param("loginChallenge", "")
                 .when()
                 .get("/auth/init")
                 .then()
                 .assertThat()
-                .statusCode(400);
+                .statusCode(400)
+                .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
+                .body("error", equalTo("Bad Request"))
+                .body("errors", equalTo("Parameter 'loginChallenge': value must not be null or empty"))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+    }
+
+    @Test
+    void authInit_MissingParameter() {
+        given()
+                .when()
+                .get("/auth/init")
+                .then()
+                .assertThat()
+                .statusCode(400)
+                .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
+                .body("error", equalTo("Bad Request"))
+                .body("errors", equalTo("Parameter 'loginChallenge': value must not be null or empty"))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
@@ -60,7 +89,11 @@ class AuthInitControllerTest {
                 .get("/auth/init")
                 .then()
                 .assertThat()
-                .statusCode(400);
+                .statusCode(400)
+                .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
+                .body("error", equalTo("Bad Request"))
+                .body("errors", equalTo("Parameter 'loginChallenge[0]': only characters and numbers allowed"))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
@@ -71,7 +104,11 @@ class AuthInitControllerTest {
                 .get("/auth/init")
                 .then()
                 .assertThat()
-                .statusCode(400);
+                .statusCode(400)
+                .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
+                .body("error", equalTo("Bad Request"))
+                .body("errors", equalTo("Parameter 'loginChallenge[0]': size must be between 0 and 50"))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
@@ -83,11 +120,16 @@ class AuthInitControllerTest {
                 .get("/auth/init")
                 .then()
                 .assertThat()
-                .statusCode(400);
+                .statusCode(400)
+                .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
+                .body("error", equalTo("Bad Request"))
+                .body("errors", equalTo("Parameter 'loginChallenge': multiple instances not supported"))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
     void authInit_loginChallenge() {
+
         mockOidcServer.start();
         mockOidcServer.stubFor(get(urlEqualTo("/oauth2/auth/requests/login?login_challenge=" + TEST_LOGIN_CHALLENGE))
                 .willReturn(aResponse()
@@ -102,10 +144,13 @@ class AuthInitControllerTest {
                 .then()
                 .assertThat()
                 .statusCode(200)
-                .extract().cookie("JSESSIONID");
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_HTML_VALUE +
+                        ";charset=UTF-8");
         mockOidcServer.stop();
-        // TODO assert correct content-type
     }
 
+    protected static void configureRestAssured() {
+        RestAssured.filters(new RequestLoggingFilter(), new ResponseLoggingFilter());
+    }
 
 }
