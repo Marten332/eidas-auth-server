@@ -6,17 +6,23 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import io.restassured.RestAssured;
 import io.restassured.filter.log.RequestLoggingFilter;
 import io.restassured.filter.log.ResponseLoggingFilter;
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.web.context.WebApplicationContext;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -30,19 +36,16 @@ class AuthInitControllerTest {
         System.setProperty("javax.net.ssl.trustStoreType", "jks");
     }
 
-    protected WireMockServer mockOidcServer;
+    protected static WireMockServer mockOidcServer;
+
+    @Autowired
+    private WebApplicationContext webApplicationContext;
 
     @LocalServerPort
     protected int port;
 
     @BeforeAll
     static void setUpAll() {
-        configureRestAssured();
-    }
-
-    @BeforeEach
-    void setUp() {
-        RestAssured.port = port;
         mockOidcServer = new WireMockServer(WireMockConfiguration.wireMockConfig()
                 .httpDisabled(true)
                 .httpsPort(9877)
@@ -50,6 +53,20 @@ class AuthInitControllerTest {
                 .keystorePassword("changeit")
                 .notifier(new ConsoleNotifier(true))
         );
+        mockOidcServer.start();
+        configureRestAssured();
+    }
+
+    @AfterAll
+    static void tearDownAll() {
+        mockOidcServer.stop();
+    }
+
+    @BeforeEach
+    void setUp() {
+        RestAssuredMockMvc.webAppContextSetup(webApplicationContext);
+        RestAssured.port = port;
+
     }
 
     @Test
@@ -129,8 +146,6 @@ class AuthInitControllerTest {
 
     @Test
     void authInit_loginChallenge() {
-
-        mockOidcServer.start();
         mockOidcServer.stubFor(get(urlEqualTo("/oauth2/auth/requests/login?login_challenge=" + TEST_LOGIN_CHALLENGE))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -145,8 +160,37 @@ class AuthInitControllerTest {
                 .assertThat()
                 .statusCode(200)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_HTML_VALUE +
-                        ";charset=UTF-8");
-        mockOidcServer.stop();
+                        ";charset=UTF-8").body("html.body.p", equalTo("Hello, nipitiri!"))
+                .cookie("JSESSIONID", matchesPattern("[A-Z0-9]{32,32}"));
+    }
+
+    @Test
+    void authInit_whenSessionExistsItIsReset() {
+        mockOidcServer.stubFor(get(urlEqualTo("/oauth2/auth/requests/login?login_challenge=" + TEST_LOGIN_CHALLENGE))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json; charset=UTF-8")
+                        .withBodyFile("mock_responses/mock_response.json")));
+
+        String cookie = given()
+                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
+                .when()
+                .get("/auth/init")
+                .then()
+                .assertThat()
+                .statusCode(200)
+                .cookie("JSESSIONID", matchesPattern("[A-Z0-9]{32,32}"))
+                .extract().cookie("JSESSIONID");
+
+        given()
+                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
+                .cookie("JSESSIONID", cookie)
+                .when()
+                .get("/auth/init")
+                .then()
+                .assertThat()
+                .statusCode(200)
+                .cookie("JSESSIONID", not(equalTo(cookie)));
     }
 
     protected static void configureRestAssured() {

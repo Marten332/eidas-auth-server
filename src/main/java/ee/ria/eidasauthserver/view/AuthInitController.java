@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @Validated
-@RestController
+@Controller
 @Slf4j
 class AuthInitController {
 
@@ -29,7 +31,7 @@ class AuthInitController {
     private RestTemplate hydraService;
 
     @GetMapping(value = "/auth/init", produces = MediaType.TEXT_HTML_VALUE)
-    public String authInit(@Validated RequestParameters loginChallenge, HttpSession session) {
+    public String authInit(@Validated RequestParameters loginChallenge, HttpSession session, Model model) {
 
         if (session.getAttribute("session") != null) {
             session.removeAttribute("session");
@@ -42,6 +44,7 @@ class AuthInitController {
         Map<String, Object> response = hydraService.getForObject(url, Map.class);
         log.info("sample response: " + response);
 
+        model.addAttribute("name", "nipitiri");
         return "hello";
     }
 
