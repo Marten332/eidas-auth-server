@@ -3,25 +3,35 @@ package ee.ria.eidasauthserver.view;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import ee.ria.eidasauthserver.session.AuthSession;
+import ee.ria.eidasauthserver.session.AuthState;
 import io.restassured.RestAssured;
+import io.restassured.config.SessionConfig;
 import io.restassured.filter.log.RequestLoggingFilter;
 import io.restassured.filter.log.ResponseLoggingFilter;
+import io.restassured.filter.session.SessionFilter;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import io.restassured.module.mockmvc.config.MockMvcConfig;
+import io.restassured.module.mockmvc.specification.MockMvcRequestSpecification;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.web.context.WebApplicationContext;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static io.restassured.RestAssured.given;
+import static io.restassured.RestAssured.requestSpecification;
+import static io.restassured.module.mockmvc.config.RestAssuredMockMvcConfig.newConfig;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
@@ -64,15 +74,13 @@ class AuthInitControllerTest {
 
     @BeforeEach
     void setUp() {
-        RestAssuredMockMvc.webAppContextSetup(webApplicationContext);
         RestAssured.port = port;
-
     }
 
     @Test
     void authInit_EmptyParameter() {
         given()
-                .param("loginChallenge", "")
+                .param("login_challenge", "")
                 .when()
                 .get("/auth/init")
                 .then()
@@ -80,7 +88,7 @@ class AuthInitControllerTest {
                 .statusCode(400)
                 .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
                 .body("error", equalTo("Bad Request"))
-                .body("errors", equalTo("Parameter 'loginChallenge': value must not be null or empty"))
+                .body("errors", equalTo("Parameter 'login_challenge': value must not be null or empty"))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
@@ -94,14 +102,14 @@ class AuthInitControllerTest {
                 .statusCode(400)
                 .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
                 .body("error", equalTo("Bad Request"))
-                .body("errors", equalTo("Parameter 'loginChallenge': value must not be null or empty"))
+                .body("errors", equalTo("Parameter 'login_challenge': value must not be null or empty"))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
     void authInit_loginChallenge_InvalidValue() {
         given()
-                .param("loginChallenge", "......")
+                .param("login_challenge", "......")
                 .when()
                 .get("/auth/init")
                 .then()
@@ -109,14 +117,14 @@ class AuthInitControllerTest {
                 .statusCode(400)
                 .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
                 .body("error", equalTo("Bad Request"))
-                .body("errors", equalTo("Parameter 'loginChallenge[0]': only characters and numbers allowed"))
+                .body("errors", equalTo("Parameter 'login_challenge[0]': only characters and numbers allowed"))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
     void authInit_loginChallenge_InvalidLength() {
         given()
-                .param("loginChallenge", "123456789012345678901234567890123456789012345678900")
+                .param("login_challenge", "123456789012345678901234567890123456789012345678900")
                 .when()
                 .get("/auth/init")
                 .then()
@@ -124,15 +132,15 @@ class AuthInitControllerTest {
                 .statusCode(400)
                 .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
                 .body("error", equalTo("Bad Request"))
-                .body("errors", equalTo("Parameter 'loginChallenge[0]': size must be between 0 and 50"))
+                .body("errors", equalTo("Parameter 'login_challenge[0]': size must be between 0 and 50"))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
     @Test
     void authInit_loginChallenge_DuplicatedParam() {
         given()
-                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
-                .param("loginChallenge", "abcdefg098AAdsCCasassa")
+                .param("login_challenge", TEST_LOGIN_CHALLENGE)
+                .param("login_challenge", "abcdefg098AAdsCCasassa")
                 .when()
                 .get("/auth/init")
                 .then()
@@ -140,7 +148,7 @@ class AuthInitControllerTest {
                 .statusCode(400)
                 .body("message", equalTo("Validation failed for object='requestParameters'. Error count: 1"))
                 .body("error", equalTo("Bad Request"))
-                .body("errors", equalTo("Parameter 'loginChallenge': multiple instances not supported"))
+                .body("errors", equalTo("Parameter 'login_challenge': multiple instances not supported"))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
     }
 
@@ -152,8 +160,12 @@ class AuthInitControllerTest {
                         .withHeader("Content-Type", "application/json; charset=UTF-8")
                         .withBodyFile("mock_responses/mock_response.json")));
 
+        AuthSession testSession = new AuthSession();
+        testSession.setState(AuthState.AUTHENTICATION_SUCCESS);
+        testSession.setLoginChallenge(TEST_LOGIN_CHALLENGE);
+
         given()
-                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
+                .param("login_challenge", TEST_LOGIN_CHALLENGE)
                 .when()
                 .get("/auth/init")
                 .then()
@@ -161,11 +173,12 @@ class AuthInitControllerTest {
                 .statusCode(200)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_HTML_VALUE +
                         ";charset=UTF-8").body("html.body.p", equalTo("Hello, nipitiri!"))
-                .cookie("JSESSIONID", matchesPattern("[A-Z0-9]{32,32}"));
+                .cookie("SESSION", matchesPattern("[A-Za-z0-9]{48,48}"));
     }
 
     @Test
     void authInit_whenSessionExistsItIsReset() {
+
         mockOidcServer.stubFor(get(urlEqualTo("/oauth2/auth/requests/login?login_challenge=" + TEST_LOGIN_CHALLENGE))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -173,24 +186,24 @@ class AuthInitControllerTest {
                         .withBodyFile("mock_responses/mock_response.json")));
 
         String cookie = given()
-                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
+                .param("login_challenge", TEST_LOGIN_CHALLENGE)
                 .when()
                 .get("/auth/init")
                 .then()
                 .assertThat()
                 .statusCode(200)
-                .cookie("JSESSIONID", matchesPattern("[A-Z0-9]{32,32}"))
-                .extract().cookie("JSESSIONID");
+                .cookie("SESSION", matchesPattern("[A-Za-z0-9]{48,48}"))
+                .extract().cookie("SESSION");
 
         given()
-                .param("loginChallenge", TEST_LOGIN_CHALLENGE)
-                .cookie("JSESSIONID", cookie)
+                .param("login_challenge", TEST_LOGIN_CHALLENGE)
+                .cookie("SESSION", cookie)
                 .when()
                 .get("/auth/init")
                 .then()
                 .assertThat()
                 .statusCode(200)
-                .cookie("JSESSIONID", not(equalTo(cookie)));
+                .cookie("SESSION", not(equalTo(cookie)));
     }
 
     protected static void configureRestAssured() {

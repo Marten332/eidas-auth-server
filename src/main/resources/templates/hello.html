@@ -6,5 +6,12 @@
 </head>
 <body>
 <p th:text="'Hello, ' + ${name} + '!'"/>
+<form action="/mockauth" method="post" target="hiddenFrame">
+    <button type="submit">accept session</button>
+</form>
+<form action="/auth/accept" method="get" target="hiddenFrame">
+    <button type="submit">accept login</button>
+</form>
+<iframe name="hiddenFrame" width="0" height="0" border="0" style="display: none;"></iframe>
 </body>
 </html>
